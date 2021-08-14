@@ -1,31 +1,434 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Web site created using create-react-app"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
+<head>
+  <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+  <script type="text/javascript" src="https://media.twiliocdn.com/sdk/js/client/v1.8/twilio.min.js"></script>
+  <script type="text/javascript" src="%PUBLIC_URL%/connection.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.3.0/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"/>
+  <meta charset="utf-8" />
+  <link rel="icon" href="%PUBLIC_URL%/vcloud-icon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#000000" />
+  <meta
+          name="description"
+          content="Web site created using create-react-app"
+  />
+  <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+  <!--
+    manifest.json provides metadata used when your web app is installed on a
+    user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
+  -->
+  <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+  <!--
+    Notice the use of %PUBLIC_URL% in the tags above.
+    It will be replaced with the URL of the `public` folder during the build.
+    Only files inside the `public` folder can be referenced from the HTML.
 
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
-    <title>React App</title>
-  </head>
+    Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
+    work correctly both with client-side routing and a non-root public URL.
+    Learn how to configure a non-root public URL by running `npm run build`.
+  -->
+  <title>Agent UI</title>
+  <link rel="stylesheet" href="//media.twiliocdn.com/taskrouter/quickstart/agent.css"/>
+  <script src="https://sdk.twilio.com/js/taskrouter/v1.21/taskrouter.min.js" integrity="sha384-5fq+0qjayReAreRyHy38VpD3Gr9R2OYIzonwIkoGI4M9dhfKW6RWeRnZjfwSrpN8" crossorigin="anonymous"></script>
+
+  <script type="text/javascript">
+    /* Subscribe to a subset of the available TaskRouter.js events for a worker */
+    function registerTaskRouterCallbacks() {
+      var serverbase = 'https://vc-server-dev-7146-dev.twil.io'
+
+      worker.on('ready', function(worker) {
+        agentActivityChanged(worker.activityName);
+        logger("Successfully registered as: " + worker.friendlyName)
+        logger("Current activity is: " + worker.activityName);
+
+      });
+
+      worker.on('reservation.wrapup', function(worker){
+        console.log('wrapup');
+        changeWorkerActivity('WrapUp');
+      })
+
+      worker.on('activity.update', function(worker) {
+        agentActivityChanged(worker.activityName);
+        logger("Worker activity changed to: " + worker.activityName);
+      });
+
+      worker.on("reservation.created", function(reservation) {
+        logger("-----");
+        logger("You have been reserved to handle a call!");
+        logger("Call from: " + reservation.task.attributes.from);
+        logger("Selected language: " + reservation.task.attributes.selected_language);
+        logger("-----");
+        document.getElementById('accept-call').style.display = 'block';
+        document.getElementById('outbound-callcontrols').style.display = 'none';
+        document.getElementById('caller-details').style.display = 'block';
+        document.getElementById('incoming-details').innerText = `Incoming call from ${reservation.task.attributes.from}`;
+        document.getElementById('incoming-queue').innerText = `Queue: ${reservation.task.taskQueueFriendlyName}`;
+        playAlert("play");
+
+        document.getElementById('call-accept').onclick = function () {
+          // todo server url var
+          const url = 'https://vc-server-dev-7146-dev.twil.io/reservation-accept';
+          const options = {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json;charset=UTF-8'
+            },
+            body: JSON.stringify({
+              task_sid: reservation.task.sid,
+              reservation_sid: reservation.sid,
+              attributes: reservation.task.attributes
+            })
+          };
+
+          fetch(url, options)
+                  .then(response => {console.log(response.status);
+                  });
+        }
+
+        document.getElementById('call-reject').onclick = function () {
+          // todo server url var
+          const url = 'https://vc-server-dev-7146-dev.twil.io/reservation-reject';
+          const options = {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json;charset=UTF-8'
+            },
+            body: JSON.stringify({
+              task_sid: reservation.task.sid,
+              reservation_sid: reservation.sid
+            })
+          };
+
+          fetch(url, options)
+                  .then(response => {console.log(response.status);
+                  });
+        }
+      });
+
+      worker.on("reservation.accepted", function(reservation) {
+        logger("Reservation " + reservation.sid + " accepted!");
+        logger(reservation.task.attributes.call_sid)
+        changeWorkerActivity('OnCall');
+        document.getElementById('agent-status').style.display = "none";
+        document.getElementById('task-sid').innerText = reservation.task.sid;
+        document.getElementById('conference-sid').innerText = reservation.task.attributes.conference.sid;
+        document.getElementById('accept-call').style.display = 'none';
+        document.getElementById('caller-details').style.display = 'block';
+        document.getElementById('incoming-details').innerText = `Connected to: ${reservation.task.attributes.from}`;
+        playAlert("stop");
+
+        //crm controller
+        document.getElementById("crm-iframe").src = `https://voccs-dot-vci-demos.uc.r.appspot.com/entryform/?phone=${reservation.task.attributes.name}&did=${reservation.task.attributes.to}&caseid=${reservation.task.attributes.case_id}&call_sid=${reservation.task.attributes.call_sid}&worker_sid=${reservation.workerSid}`
+       // document.getElementById("crm-iframe").src = `https://covax-dot-vci-playground.uc.r.appspot.com/entryform/?phone=${reservation.task.attributes.name}&did=${reservation.task.attributes.to}&caseid=${reservation.task.attributes.case_id}&call_sid=${reservation.task.attributes.call_sid}&worker_sid=${reservation.workerSid}`
+       // document.getElementById("crm-iframe").src = `https://www.ebay.com`
+
+        // update caller to end_on_exit
+        updateCaller(reservation.task.attributes.conference.sid, reservation.task.attributes.conference.participants.customer)
+
+        // complete task after agent clicks complete button
+        document.getElementById('button-complete').onclick = function () {
+          // todo server url var
+          const url = serverbase + '/complete-task';
+          const options = {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json;charset=UTF-8'
+            },
+            body: JSON.stringify({
+              task_sid: reservation.task.sid
+            })
+          };
+
+          fetch(url, options)
+                  .then(response => {console.log(response.status);
+                  });
+        };
+
+        document.getElementById('button-hold').onclick = function () {
+          // todo server url var
+          const url = serverbase + '/call-hold';
+          const options = {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json;charset=UTF-8'
+            },
+            body: JSON.stringify({
+              participant_sid: reservation.task.attributes.conference.participants.customer,
+              conference_sid: reservation.task.attributes.conference.sid,
+              hold_action: true
+            })
+          };
+
+          fetch(url, options)
+                  .then(response => {console.log(response.status);
+                                     holdCallback(true, "");
+                  });
+        };
+
+        document.getElementById('button-hold-active').onclick = function () {
+          // todo server url var
+          const url = serverbase + '/call-hold';
+          const options = {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json;charset=UTF-8'
+            },
+            body: JSON.stringify({
+              participant_sid: reservation.task.attributes.conference.participants.customer,
+              conference_sid: reservation.task.attributes.conference.sid,
+              hold_action: false
+            })
+          };
+
+          fetch(url, options)
+                  .then(response => {console.log(response.status);
+                                     holdCallback(false, "");
+                  });
+        };
+
+    function holdCallback (holdAction, timeStamp) {
+        // todo server url var
+        console.log('Conference Hold Called');
+        // const url = serverbase + '/conference-hold';
+        const url = 'https://08a0ffab03ba.ngrok.io/test-in/';
+        const options = {
+          method: 'POST',
+          headers: {
+             'Accept': 'application/json',
+             'Content-Type': 'application/json;charset=UTF-8'
+            },
+          body: JSON.stringify({
+          time_stamp: timeStamp,   
+          participant_sid: reservation.task.attributes.conference.participants.customer,
+          conference_sid: reservation.task.attributes.conference.sid,
+          hold_action: holdAction
+           })
+          };
+
+    fetch(url, options)
+        .then(response => {console.log(response.status);
+        });
+    }
+
+      });
+
+      worker.on("reservation.rejected", function(reservation) {
+        logger("Reservation " + reservation.sid + " rejected!");
+        document.getElementById('accept-call').style.display = 'none';
+        document.getElementById('outbound-callcontrols').style.display = 'block';
+        document.getElementById('caller-details').style.display = 'none';
+      });
+
+      worker.on("reservation.timeout", function(reservation) {
+        logger("Reservation " + reservation.sid + " timed out!");
+        document.getElementById('accept-call').style.display = 'none';
+        document.getElementById('outbound-callcontrols').style.display = 'block';
+        document.getElementById('caller-details').style.display = 'none';
+      });
+
+      worker.on("reservation.canceled", function(reservation) {
+        logger("Reservation " + reservation.sid + " canceled!");
+        document.getElementById('agent-status').style.display = "block";
+        document.getElementById('accept-call').style.display = 'none';
+        document.getElementById('outbound-callcontrols').style.display = 'block';
+        document.getElementById('caller-details').style.display = 'none';
+      });
+
+      worker.on("reservation.completed", function(reservation) {
+        logger("reservation " + reservation.sid + " completed!");
+        changeWorkerActivity("Available");
+        document.getElementById('agent-status').style.display = "block";
+        document.getElementById('caller-details').style.display = 'none';
+        document.getElementById('button-hold').style.display = "inline-block";
+        document.getElementById('button-hold-active').style.display = "none";
+        document.getElementById("crm-iframe").src = "https://voccs-dot-vci-demos.uc.r.appspot.com/"
+      })
+
+      worker.on("task.updated", function(task) {
+        logger("task " + task.sid + " updated!");
+        console.log('debug task updated');
+        console.log(task);
+        // transfer connections
+        const connect_string = "Connected to "
+        if (task.attributes.transfer_number !== undefined){
+          console.log('transfer number triggered');
+          document.getElementById('transfer-status').innerText = connect_string.concat(task.attributes.transfer_number);
+          document.getElementById('transfer-participant').innerText = task.attributes.outbound_sid
+          document.getElementById('transfer-conference').innerText = task.attributes.conference.sid
+        }else{
+          console.log('Pass through transfer eval');
+        }
+      })
+
+      worker.on("token.expired", function(task){
+        // generate token experation message
+        logger("Token Has Expired");
+        fetchWorkerSid();
+      })
+    }
+
+    /* Hook up the agent Activity buttons to TaskRouter.js */
+
+    function bindAgentActivityButtons() {
+      // Fetch the full list of available Activities from TaskRouter. Store each
+      // ActivitySid against the matching Friendly Name
+      var activitySids = {};
+      worker.activities.fetch(function(error, activityList) {
+        var activities = activityList.data;
+        var i = activities.length;
+        while (i--) {
+          activitySids[activities[i].friendlyName] = activities[i].sid;
+        }
+      });
+
+      /* For each button of class 'change-activity' in our Agent UI, look up the
+       ActivitySid corresponding to the Friendly Name in the button’s next-activity
+       data attribute. Use Worker.js to transition the agent to that ActivitySid
+       when the button is clicked.*/
+      var elements = document.getElementsByClassName('change-activity');
+      var i = elements.length;
+      while (i--) {
+        elements[i].onclick = function() {
+          var nextActivity = this.dataset.nextActivity;
+          var nextActivitySid = activitySids[nextActivity];
+          worker.update({"ActivitySid":nextActivitySid});
+        }
+      }
+
+      /* Handle select form on main agent interface status change */
+      function changeSelectActivity(eleval){
+        nextActivity = eleval;
+        var nextActivitySid = activitySids[nextActivity];
+        worker.update({"ActivitySid":nextActivitySid});
+      }
+
+      const selavail = document.getElementById('availableselectchange');
+      selavail.addEventListener("change", function(){changeSelectActivity(selavail.value)}, false);
+
+    }
+
+    /* Update the UI to reflect a change in Activity */
+
+    function agentActivityChanged(activity) {
+      console.log('change act');
+      console.log(activity);
+      hideAgentActivities();
+      showAgentActivity(activity);
+    }
+
+    function hideAgentActivities() {
+      var elements = document.getElementsByClassName('agent-activity');
+      var i = elements.length;
+      while (i--) {
+        elements[i].style.display = 'none';
+      }
+    }
+
+    function showAgentActivity(activity) {
+      activity = activity.toLowerCase();
+      var elements = document.getElementsByClassName(('agent-activity ' + activity));
+      var i = elements.length;
+      while (i--) {
+        elements[i].style.display = 'block';
+      }
+    }
+
+    /* update worker activity */
+    function updateWorkerActivity(nextAct, activityDict) {
+        nextActivity = nextAct;
+        var actParsed = activityDict;
+        var nextActivitySid = actParsed[nextActivity];
+        worker.update({"ActivitySid": nextActivitySid});
+      }
+
+      // todo update url and function
+     function changeWorkerActivity (nAct) {
+       fetch('https://vc-server-dev-7146-dev.twil.io/get-activities')
+               .then(res => res.json())
+               .then(json => updateWorkerActivity(nAct, json));
+    }
+
+    function logger(message) {
+      var log = document.getElementById('log');
+      log.value += "\n> " + message;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    // play alert in browser
+  
+    const audio = new Audio('https://glitter-albatross-8861.twil.io/assets/https___www.tones7.com_media_office_phone.mp3'); 
+    function playAlert(instruction) {
+      if (instruction === 'play'){
+        audio.play();
+      }else if(instruction === 'stop')
+        audio.pause();
+      }
+
+    // update inital caller to end_conference_onexit
+    function updateCaller (confId, partId) {
+      // todo server url var
+      var serverbase = 'https://vc-server-dev-7146-dev.twil.io';
+      const url = serverbase + '/update-caller';
+      const options = {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json;charset=UTF-8'
+        },
+        body: JSON.stringify({
+          participant_sid: partId,
+          conference_sid: confId
+        })
+      };
+
+      fetch(url, options)
+              .then(response => {console.log("caller updated", response.status);
+              });
+    };
+
+    // Initialize TaskRouter.js on page load using window.workerToken -
+    // a Twilio Capability token that was set from rendering the template with agents endpoint
+    function loadWorker (wtoken) {
+          console.log('debug token ' + wtoken);
+          window.worker = new Twilio.TaskRouter.Worker(wtoken);
+          registerTaskRouterCallbacks();
+          bindAgentActivityButtons();
+      }
+
+    function fetchWorkerSid(){
+      var serverbase = 'https://vc-server-dev-7146-dev.twil.io';
+      var ident = document.getElementById('worker-identity').value;
+      fetch(serverbase + '/agent-token?email=' + ident)
+              .then(res => res.json())
+              .then(json => loadWorker(json.token));
+    }
+
+    window.setTimeout(fetchWorkerSid, 3000)
+
+    window.onload = function() {
+      var serverbase = 'https://vc-server-dev-7146-dev.twil.io';
+      var identity = document.getElementById('worker-identity').value;
+      // get worker token from api and call loadWorker to init task router worker object
+      logger("Initializing...");
+
+     // fetch(serverbase + '/agent-token?email=' + 'ryan.schuetz@vcloud.com')
+     //         .then(res => res.json())
+     //         .then(json => loadWorker(json.token));
+    };
+
+  </script>
+
+</head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
@@ -39,5 +442,6 @@
       To begin the development, run `npm start` or `yarn start`.
       To create a production bundle, use `npm run build` or `yarn build`.
     -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/js/bootstrap.bundle.min.js" integrity="sha384-b5kHyXgcpbZJO/tY9Ul7kGkf1S0CWuKcCD38l8YkeH8z8QjE0GmW1gYU5S9FOnJ0" crossorigin="anonymous"></script>
   </body>
 </html>
